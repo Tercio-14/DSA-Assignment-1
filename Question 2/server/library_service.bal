@@ -1,22 +1,43 @@
-
 import ballerina/grpc;
+import ballerinax/mysql;
+import ballerina/time;
 import ballerina/sql;
+
+configurable  string USER = "root";
+configurable  string PASSWORD = "PHW#84#jeor";
+configurable  string HOST = "localhost";
+configurable  int PORT = 3306;
+configurable  string DATABASE = "library";
+
+
+final mysql:Client mySQLClient = check new(
+    host= "localhost", user= "root", password= "PHW#84#jeor", port= 3306, database= "library"
+);
+
+
+listener grpc:Listener ep = new (9090);
+
 @grpc:Descriptor {value: LIBRARY_DESC}
 service "Library" on ep {
 
-    remote function addBook(Book value) returns string|error {
-        string insertQuery = "Insert into Books(title,author,isbn) Values (?,?,?)";
-        var insertParams = [value.title, value.author, value.isbn];
+    remote function addBook(Book book) returns string|error {
+        string insertQuery = string `INSERT INTO books (bookISBN, bookTitle, author, location) VALUES (?, ?, ?, ?)`;
+        var insertParams = [book.isbn, book.title, book.author, book.location];
 
-    var addResult = check mySQLClient->executeInsert(insertQuery, insertParams);
-    
-    if (addResult is int) {
-        return "Book added successfully";
-    } else {
-        return "Failed to add the book: " + addResult.reason();
+        var insertResult = check mySQLClient->executeUpdate(insertQuery, insertParams);
+        
+        if (insertResult is int) {
+            if (insertResult > 0) {
+                return "Book added successfully";
+            } else {
+                return "Failed to add the book";
+            }
+        } else {
+            return "Failed to add the book: " + insertResult.message;
+        }
     }
-    
-    }
+
+
     remote function updateBook(Book value) returns string|error {
          string updateQuery = "UPDATE books SET title = ?, author = ? WHERE isbn = ?";
     var updateParams = [value.title, value.author, value.isbn];
@@ -36,7 +57,7 @@ service "Library" on ep {
     }
     remote function removeBook(string value) returns Book|error {
         string deleteQuery = "DELETE FROM books WHERE isbn = ?";
-    var deleteParams = [isbn];
+    var deleteParams = [value];
 
     var deleteResult = check mySQLClient->executeUpdate(deleteQuery, deleteParams);
     
@@ -53,7 +74,7 @@ service "Library" on ep {
     }
     remote function locateBook(locBook value) returns Book|error {
             string selectQuery = "SELECT title, author, isbn FROM books WHERE isbn = ?";
-    var selectParams = [isbn];
+    var selectParams = [value.book_isbn];
 
     var selectResult = check mySQLClient->select(selectQuery, selectParams);
     
@@ -80,7 +101,7 @@ service "Library" on ep {
 
     if (isBookAvailable) {
         var borrowQuery = "INSERT INTO borrow_history (user_id, book_isbn, borrow_date) VALUES (?, ?, ?)";
-        var borrowParams = [value.userId, value.isbn, currentDatetime()];
+        var borrowParams = [value.userId, value.book_isbn, time:currentTime()];
 
         var borrowResult = check mySQLClient->executeInsert(borrowQuery, borrowParams);
 

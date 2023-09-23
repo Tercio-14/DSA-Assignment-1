@@ -1,4 +1,3 @@
-
 import ballerina/grpc;
 import ballerina/protobuf;
 import ballerina/protobuf.types.empty;
@@ -245,70 +244,6 @@ public class BookStream {
 
     public isolated function close() returns grpc:Error? {
         return self.anydataStream.close();
-    }
-}
-
-public client class LibraryStringCaller {
-    private grpc:Caller caller;
-
-    public isolated function init(grpc:Caller caller) {
-        self.caller = caller;
-    }
-
-    public isolated function getId() returns int {
-        return self.caller.getId();
-    }
-
-    isolated remote function sendString(string response) returns grpc:Error? {
-        return self.caller->send(response);
-    }
-
-    isolated remote function sendContextString(wrappers:ContextString response) returns grpc:Error? {
-        return self.caller->send(response);
-    }
-
-    isolated remote function sendError(grpc:Error response) returns grpc:Error? {
-        return self.caller->sendError(response);
-    }
-
-    isolated remote function complete() returns grpc:Error? {
-        return self.caller->complete();
-    }
-
-    public isolated function isCancelled() returns boolean {
-        return self.caller.isCancelled();
-    }
-}
-
-public client class LibraryBookCaller {
-    private grpc:Caller caller;
-
-    public isolated function init(grpc:Caller caller) {
-        self.caller = caller;
-    }
-
-    public isolated function getId() returns int {
-        return self.caller.getId();
-    }
-
-    isolated remote function sendBook(Book response) returns grpc:Error? {
-        return self.caller->send(response);
-    }
-
-    isolated remote function sendContextBook(ContextBook response) returns grpc:Error? {
-        return self.caller->send(response);
-    }
-
-    isolated remote function sendError(grpc:Error response) returns grpc:Error? {
-        return self.caller->sendError(response);
-    }
-
-    isolated remote function complete() returns grpc:Error? {
-        return self.caller->complete();
-    }
-
-    public isolated function isCancelled() returns boolean {
-        return self.caller.isCancelled();
     }
 }
 

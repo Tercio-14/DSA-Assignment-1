@@ -1,0 +1,126 @@
+openapi: 3.0.0
+info:
+  title: Faculty API
+  version: 1.0.0
+paths:
+  /lecturers:
+    get:
+      summary: Get all lecturers
+      responses:
+        '200':
+          description: Successful response
+    post:
+      summary: Add a new lecturer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Lecturer'
+      responses:
+        '201':
+          description: Created
+
+  /lecturers/{staffNumber}:
+    get:
+      summary: Get details of a specific lecturer
+      parameters:
+        - name: staffNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+        '404':
+          description: Lecturer not found
+
+  /lecturers/{staffNumber}:
+    put:
+      summary: Update an existing lecturer's information
+      parameters:
+        - name: staffNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Lecturer'
+      responses:
+        '200':
+          description: Successful response
+        '404':
+          description: Lecturer not found
+
+  /lecturers/{staffNumber}:
+    delete:
+      summary: Delete a lecturer's record
+      parameters:
+        - name: staffNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '404':
+          description: Lecturer not found
+
+  /courses/{courseCode}/lecturers:
+    get:
+      summary: Get all lecturers teaching a specific course
+      parameters:
+        - name: courseCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+
+  /offices/{officeNumber}/lecturers:
+    get:
+      summary: Get all lecturers in a specific office
+      parameters:
+        - name: officeNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+
+components:
+  schemas:
+    Lecturer:
+      type: object
+      properties:
+        staffNumber:
+          type: string
+        officeNumber:
+          type: string
+        staffName:
+          type: string
+        title:
+          type: string
+        courses:
+          type: array
+          items:
+            type: string
+    Course:
+      type: object
+      properties:
+        courseCode:
+          type: string
+        courseName:
+          type: string
+        nqfLevel:
+          type: integer

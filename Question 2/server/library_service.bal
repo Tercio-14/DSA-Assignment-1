@@ -1,19 +1,18 @@
 import ballerina/grpc;
 import ballerinax/mysql;
+import ballerinax/mysql.driver as _;
 import ballerina/time;
 import ballerina/sql;
 
-configurable  string USER = "root";
-configurable  string PASSWORD = "PHW#84#jeor";
-configurable  string HOST = "localhost";
-configurable  int PORT = 3306;
-configurable  string DATABASE = "library";
+configurable string USER = "root";
+configurable string PASSWORD = "PHW#84#jeor";
+configurable string HOST = "localhost";
+configurable int PORT = 3306;
+configurable string DATABASE = "library";
 
-
-final mysql:Client mySQLClient = check new(
-    host= "localhost", user= "root", password= "PHW#84#jeor", port= 3306, database= "library"
+final mysql:Client mySQLClient = check new (
+    host = "localhost", user = "root", password = "PHW#84#jeor", port = 3306, database = "library"
 );
-
 
 listener grpc:Listener ep = new (9090);
 
@@ -21,11 +20,13 @@ listener grpc:Listener ep = new (9090);
 service "Library" on ep {
 
     remote function addBook(Book book) returns string|error {
-        string insertQuery = string `INSERT INTO books (bookISBN, bookTitle, author, location) VALUES (?, ?, ?, ?)`;
+        string insertQuery = string `INSERT INTO books (bookISBN, bookTitle, author, location) VALUES (${book.isbn}, ${book.title}, ${book.author}, ${book.location})`;
         var insertParams = [book.isbn, book.title, book.author, book.location];
 
-        var insertResult = check mySQLClient->executeUpdate(insertQuery, insertParams);
-        
+        sql:ParameterizedQuery query = `INSERT INTO books (bookISBN, bookTitle, author, location) VALUES (${book.isbn}, ${book.title}, ${book.author}, ${book.location})`;
+
+        var insertResult = check mySQLClient->execute(query);
+
         if (insertResult is int) {
             if (insertResult > 0) {
                 return "Book added successfully";
@@ -33,149 +34,167 @@ service "Library" on ep {
                 return "Failed to add the book";
             }
         } else {
-            return "Failed to add the book: " + insertResult.message;
+            return "Failed to add the book: " + insertResult.toString();
         }
     }
-
 
     remote function updateBook(Book value) returns string|error {
-         string updateQuery = "UPDATE books SET title = ?, author = ? WHERE isbn = ?";
-    var updateParams = [value.title, value.author, value.isbn];
+        string updateQuery = "UPDATE books SET title = ?, author = ? WHERE isbn = ?";
+        var updateParams = [value.title, value.author, value.isbn];
 
-    var updateResult = check mySQLClient->executeUpdate(updateQuery, updateParams);
-    
-    if (updateResult is int) {
-        if (updateResult > 0) {
-            return "Book updated successfully";
+        sql:ParameterizedQuery query = `UPDATE books SET title = ${value.title}, author = ${value.author}  WHERE isbn = ${value.isbn}`;
+
+        var updateResult = check mySQLClient->execute(query);
+
+        if (updateResult is int) {
+            if (updateResult > 0) {
+                return "Book updated successfully";
+            } else {
+                return "No book found with the given ISBN";
+            }
         } else {
-            return "No book found with the given ISBN";
+            return "Failed to update the book: " + updateResult.toString();
         }
-    } else {
-        return "Failed to update the book: " + updateResult.reason();
-    }
 
     }
     remote function removeBook(string value) returns Book|error {
         string deleteQuery = "DELETE FROM books WHERE isbn = ?";
-    var deleteParams = [value];
+        var deleteParams = [value];
 
-    var deleteResult = check mySQLClient->executeUpdate(deleteQuery, deleteParams);
-    
-    if (deleteResult is int) {
-        if (deleteResult > 0) {
-            return "Book removed successfully";
+        sql:ParameterizedQuery query = `DELETE FROM books WHERE isbn = ${value}`;
+
+        var deleteResult = check mySQLClient->execute(query);
+
+        Book book = {};
+
+        if (deleteResult is int) {
+            if (deleteResult > 0) {
+                return book;
+            } else {
+                return error("No book found with the given ISBN");
+            }
         } else {
-            return "No book found with the given ISBN";
+            return error("Failed to remove the book: " + deleteResult.toString());
         }
-    } else {
-        return "Failed to remove the book: " + deleteResult.reason();
-    }
 
     }
     remote function locateBook(locBook value) returns Book|error {
-            string selectQuery = "SELECT title, author, isbn FROM books WHERE isbn = ?";
-    var selectParams = [value.book_isbn];
+        string selectQuery = "SELECT title, author, isbn FROM books WHERE isbn = ?";
+        var selectParams = [value.book_isbn];
 
-    var selectResult = check mySQLClient->select(selectQuery, selectParams);
-    
-    if (selectResult is table) {
-        if (table:isEmpty(selectResult)) {
-            return error("No book found with the given ISBN");
-        } else {
-            map<string>? resultRow = selectResult[0];
-            if (resultRow != null) {
-                return {
-                    title: resultRow["title"] as string,
-                    author: resultRow["author"] as string,
-                    isbn: resultRow["isbn"] as string
+        sql:ParameterizedQuery query = `SELECT title, author, isbn FROM books WHERE isbn = ${value.book_isbn}`;
+
+        var selectResult = mySQLClient->query(query, Book);
+
+        if (selectResult is Book) {
+            if (selectResult.lenght == 0) {
+                return error("No book found with the given ISBN");
+            } else {
+                map<string>? resultRow = selectResult[0];
+                // if (resultRow != null) {
+                //     return {
+                //         title: resultRow["title"] as string,
+                //         author: resultRow["author"] as string,
+                //         isbn: resultRow["isbn"] as string
+                //     };
+                // }
+
+                Book book = {
+                    title: selectResult[0].title,
+                    author: selectResult[0].author,
+                    isbn: selectResult[0].isbn
                 };
             }
+        } else {
+            return error("Failed to locate the book: " + selectResult.toString());
         }
-    } else {
-        return error("Failed to locate the book: " + selectResult.reason());
-    }
 
     }
     remote function borrowBook(Request value) returns string|error {
-    var isBookAvailable = checkIsBookAvailable(value.isbn);
+        // var isBookAvailable = checkIsBookAvailable(value.isbn);
+        var isBookAvailable = true;
 
-    if (isBookAvailable) {
-        var borrowQuery = "INSERT INTO borrow_history (user_id, book_isbn, borrow_date) VALUES (?, ?, ?)";
-        var borrowParams = [value.userId, value.book_isbn, time:currentTime()];
+        if (isBookAvailable) {
+            var borrowQuery = "INSERT INTO borrow_history (user_id, book_isbn, borrow_date) VALUES (?, ?, ?)";
+            //var borrowParams = [value.userId, value.book_isbn, time:currentTime()];
 
-        var borrowResult = check mySQLClient->executeInsert(borrowQuery, borrowParams);
+            sql:ParameterizedQuery query = `INSERT INTO borrow_history (user_id, book_isbn, borrow_date) VALUES (${value.user_id}, ${value.book_isbn}, ${time:utcNow()})`;
 
-        if (borrowResult is int) {
-            var updateQuery = "UPDATE books SET is_available = FALSE WHERE isbn = ?";
-            var updateParams = [value.isbn];
+            var borrowResult = check mySQLClient->execute(query);
 
-            var updateResult = check mySQLClient->executeUpdate(updateQuery, updateParams);
+            if (borrowResult is int) {
+                //var updateQuery = "UPDATE books SET is_available = FALSE WHERE isbn = ?";
+                //var updateParams = [value.isbn];
 
-            if (updateResult is int && updateResult > 0) {
-                return "Book borrowed successfully";
+                sql:ParameterizedQuery updateQuery = `UPDATE books SET is_available = FALSE WHERE isbn = ${value.book_isbn}`;
+
+                var updateResult = check mySQLClient->execute(updateQuery);
+
+                if (updateResult is int && updateResult.length() > 0) {
+                    return "Book borrowed successfully";
+                } else {
+                    return "Failed to update book availability status";
+                }
             } else {
-                return "Failed to update book availability status";
+                return "Failed to record borrow history: " + borrowResult.toString();
             }
         } else {
-            return "Failed to record borrow history: " + borrowResult.reason();
+            return "Book is not available for borrowing";
         }
-    } else {
-        return "Book is not available for borrowing";
-    }
     }
     remote function createUsers(stream<User, grpc:Error?> clientStream) returns string|error {
-    try {
-        while (true) {
-            var user = check clientStream.getNext();
+        do {
+            while(true){
+            var user = check clientStream.next();
 
             if (user is User) {
                 var insertQuery = "INSERT INTO users (username, email) VALUES (?, ?)";
                 var insertParams = [user.username, user.email];
 
-                var insertResult = check mySQLClient->executeInsert(insertQuery, insertParams);
+                sql:ParameterizedQuery query = `INSERT INTO users (username, email) VALUES (${user.username}, ${user.email})`;
 
-                if (insertResult is not int) {
+                var insertResult = check mySQLClient->execute(query);
+
+                if (insertResult is int) {
                     return "Failed to insert user: " + insertResult.reason();
                 }
             } else {
                 break;
             }
-        }
-
-        return "Users created successfully";
-    } catch (grpc:Error e) {
-        return "Error while receiving user data from the client: " + e.message();
-    }
-    }
-    remote function listAvailableBooks() returns stream<Book, error?>|error {
-            string selectQuery = "SELECT title, author, isbn FROM books WHERE is_available = TRUE";
-    
-    var selectResult = check mySQLClient->select(selectQuery);
-
-    if (selectResult is table) {
-        // Define a stream to send the available books to the client
-        stream<Book, error?> availableBooksStream = new;
-
-        foreach var row in selectResult {
-            map<string>? resultRow = row;
-            if (resultRow != null) {
-                Book book = {
-                    title: resultRow["title"] as string,
-                    author: resultRow["author"] as string,
-                    isbn: resultRow["isbn"] as string
-                };
-                // Send the book to the client
-                _ = availableBooksStream.push(book);
             }
+
+            return "Users created successfully";
+        } on fail var varName {
+            return error("Error while receiving user data from the client: "         + varName.message());
         }
         
-        // Close the stream to indicate the end of data
-        availableBooksStream.close();
-
-        return availableBooksStream;
-    } else {
-        return error("Failed to retrieve available books: " + selectResult.reason());
     }
+
+    remote function listAvailableBooks() returns stream<Book, error?>|error {
+        string selectQuery = "SELECT title, author, isbn FROM books WHERE is_available = TRUE";
+
+        sql:ParameterizedQuery query = `SELECT title, author, isbn FROM books WHERE is_available = TRUE`;
+        var selectResult =  mySQLClient->query(query, Book);
+
+        if (selectResult is Book)  {
+            // Define a stream to send the available books to the client
+            stream<Book, error?> availableBooksStream=new;
+            Book[] books = [];
+
+            foreach var item in selectResult {
+                Book book = {
+                    title: item.title,
+                    author: item.author,
+                    isbn: item.isbn
+                };
+
+                books.push(book);
+            }
+
+            return books.toStream();
+        } else {
+            return error("Failed to retrieve available books: " + selectResult.toString());
+        }
     }
 }
 
